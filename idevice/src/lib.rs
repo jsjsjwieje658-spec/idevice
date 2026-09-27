@@ -121,6 +121,11 @@ pub trait IdeviceService: Sized {
             idevice.set_udid(udid);
         }
 
+        // Keep the lockdown session alive for as long as the service connection
+        // lives: iOS tears down session-scoped services when the StartSession
+        // connection closes, which would otherwise kill the service right here.
+        idevice.set_session_keepalive(lockdown);
+
         Self::from_stream(idevice).await
     }
 
@@ -227,6 +232,11 @@ pub struct Idevice {
     label: String,
     /// Cached device UDID for convenience in higher-level protocols
     udid: Option<String>,
+    /// Lockdown session that started this service, kept alive on purpose.
+    /// iOS tears down session-scoped lockdown services when the StartSession
+    /// connection closes; holding the client here ties the session lifetime to
+    /// the service connection so the service cannot die between connect and use.
+    session_keepalive: Option<Box<LockdownClient>>,
 }
 
 impl Idevice {
@@ -240,11 +250,17 @@ impl Idevice {
             socket: Some(socket),
             label: label.into(),
             udid: None,
+            session_keepalive: None,
         }
     }
 
     pub fn get_socket(self) -> Option<Box<dyn ReadWrite>> {
         self.socket
+    }
+
+    /// Keep a lockdown session alive for as long as this service connection lives
+    pub fn set_session_keepalive(&mut self, lockdown: LockdownClient) {
+        self.session_keepalive = Some(Box::new(lockdown));
     }
 
     /// Sets cached UDID

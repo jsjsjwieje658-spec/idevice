@@ -111,6 +111,10 @@ impl AfcClient {
                 .await?;
         }
 
+        // Same as IdeviceService::connect: the afc2 service dies if the
+        // StartSession connection that started it is closed first.
+        idevice.set_session_keepalive(lockdown);
+
         Self::from_stream(idevice).await
     }
 
